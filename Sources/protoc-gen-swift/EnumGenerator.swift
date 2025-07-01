@@ -60,7 +60,7 @@ class EnumGenerator {
 
         p.print(
             "",
-            "\(enumDescriptor.protoSourceCommentsWithDeprecation(generatorOptions: generatorOptions))\(visibility)enum \(swiftRelativeName): \(enumDescriptor.isClosed ? "Int, " : "")\(namer.swiftProtobufModulePrefix)Enum, \(Self.requiredProtocolConformancesForEnums), \(namer.swiftProtobufModulePrefix)NameMappable {"
+            "\(enumDescriptor.protoSourceCommentsWithDeprecation(generatorOptions: generatorOptions))\(visibility)enum \(swiftRelativeName): \(enumDescriptor.isClosed ? "Int, " : "")\(namer.swiftProtobufModulePrefix)Enum, \(Self.requiredProtocolConformancesForEnums) {"
         )
         p.withIndentation { p in
             if !enumDescriptor.isClosed {
