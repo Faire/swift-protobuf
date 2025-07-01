@@ -1159,3 +1159,209 @@ extension NameMap {
         }.sorted { $0.rawValue < $1.rawValue }
     }
 }
+
+// MARK: - Enum Description Protocol Support
+
+/// A protocol that enums can conform to for automatic integration with NameMap.
+///
+/// When an enum conforms to this protocol, its `description` property will automatically
+/// use the protocol buffer name from the associated NameMap instead of the default
+/// Swift enum case name.
+///
+/// ## Example
+/// ```swift
+/// enum MyEnum: Int, CaseIterable, NameMappable {
+///     case first = 1
+///     case second = 2
+///     case third = 3
+///     
+///     static let nameMap = NameMap([
+///         1: _NameMap.NameDescription.same(proto: "FIRST_VALUE"),
+///         2: _NameMap.NameDescription.same(proto: "SECOND_VALUE"),
+///         3: _NameMap.NameDescription.same(proto: "THIRD_VALUE")
+///     ])
+/// }
+///
+/// print(MyEnum.first.description) // Prints "FIRST_VALUE" instead of "first"
+/// ```
+public protocol NameMappable {
+    /// The NameMap associated with this enum type.
+    ///
+    /// This should be implemented as a static property that provides the NameMap
+    /// containing the protocol buffer name mappings for the enum cases.
+    static var nameMap: NameMap { get }
+}
+
+// MARK: - Automatic Description Integration
+
+extension RawRepresentable where Self: NameMappable, RawValue == Int {
+    
+    /// The description of the enum case, automatically using the protocol buffer name
+    /// from the associated NameMap when available.
+    ///
+    /// This property automatically integrates with the NameMap system to provide
+    /// protocol buffer names for enum cases. If a mapping exists in the NameMap,
+    /// it returns the protocol buffer name; otherwise, it falls back to the default
+    /// Swift behavior.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// enum Status: Int, NameMappable {
+    ///     case active = 1
+    ///     case inactive = 2
+    ///     
+    ///     static let nameMap = NameMap([
+    ///         1: _NameMap.NameDescription.same(proto: "STATUS_ACTIVE"),
+    ///         2: _NameMap.NameDescription.same(proto: "STATUS_INACTIVE")
+    ///     ])
+    /// }
+    ///
+    /// print(Status.active.description)   // "STATUS_ACTIVE"
+    /// print(Status.inactive.description) // "STATUS_INACTIVE"
+    /// ```
+    public var description: String {
+        if let protoName = Self.nameMap.protoName(for: self) {
+            return protoName
+        }
+        
+        // Fall back to default behavior if no mapping exists
+        // We use string interpolation to get the default description
+        return "\(self)"
+    }
+}
+
+// MARK: - Alternative Description Methods
+
+extension NameMappable where Self: RawRepresentable, RawValue == Int {
+    
+    /// Returns the protocol buffer name for this enum case.
+    ///
+    /// This is a convenience method that provides explicit access to the protocol
+    /// buffer name, separate from the `description` property.
+    ///
+    /// - Returns: The protocol buffer name, or `nil` if no mapping exists.
+    ///
+    /// ## Example
+    /// ```swift
+    /// if let protoName = MyEnum.first.protoName {
+    ///     print("Proto name: \(protoName)")
+    /// }
+    /// ```
+    public var protoName: String? {
+        return Self.nameMap.protoName(for: self)
+    }
+    
+    /// Returns the JSON format name for this enum case.
+    ///
+    /// This is a convenience method that provides explicit access to the JSON
+    /// format name, separate from the `description` property.
+    ///
+    /// - Returns: The JSON name, or `nil` if no mapping exists.
+    ///
+    /// ## Example
+    /// ```swift
+    /// if let jsonName = MyEnum.first.jsonName {
+    ///     print("JSON name: \(jsonName)")
+    /// }
+    /// ```
+    public var jsonName: String? {
+        return Self.nameMap.jsonName(for: self)
+    }
+    
+    /// Returns the complete name information for this enum case.
+    ///
+    /// This provides access to all available name information including both
+    /// protocol buffer and JSON names.
+    ///
+    /// - Returns: The field name information, or `nil` if no mapping exists.
+    ///
+    /// ## Example
+    /// ```swift
+    /// if let info = MyEnum.first.nameInfo {
+    ///     print("Number: \(info.number), Proto: \(info.protoName), JSON: \(info.jsonName)")
+    /// }
+    /// ```
+    public var nameInfo: FieldNameInfo? {
+        return Self.nameMap.nameInfo(for: self)
+    }
+}
+
+// MARK: - Factory Methods for NameMappable Enums
+
+extension NameMappable where Self: RawRepresentable, RawValue == Int {
+    
+    /// Creates an enum case from a protocol buffer name.
+    ///
+    /// This method provides a type-safe way to create enum instances from their
+    /// protocol buffer names.
+    ///
+    /// - Parameter protoName: The protocol buffer name to look up.
+    /// - Returns: The corresponding enum case, or `nil` if no mapping exists.
+    ///
+    /// ## Example
+    /// ```swift
+    /// if let status = Status.fromProtoName("STATUS_ACTIVE") {
+    ///     print("Found status: \(status)")
+    /// }
+    /// ```
+    public static func fromProtoName(_ protoName: String) -> Self? {
+        return nameMap.enumCase(forProtoName: protoName)
+    }
+    
+    /// Creates an enum case from a JSON name.
+    ///
+    /// This method provides a type-safe way to create enum instances from their
+    /// JSON format names.
+    ///
+    /// - Parameter jsonName: The JSON name to look up.
+    /// - Returns: The corresponding enum case, or `nil` if no mapping exists.
+    ///
+    /// ## Example
+    /// ```swift
+    /// if let status = Status.fromJSONName("statusActive") {
+    ///     print("Found status: \(status)")
+    /// }
+    /// ```  
+    public static func fromJSONName(_ jsonName: String) -> Self? {
+        return nameMap.enumCase(forJSONName: jsonName)
+    }
+}
+
+// MARK: - Collection Extensions for NameMappable Enums
+
+extension NameMappable where Self: RawRepresentable & CaseIterable, RawValue == Int {
+    
+    /// Returns all cases of this enum that have mappings in the NameMap.
+    ///
+    /// This provides a convenient way to iterate over only the enum cases that
+    /// have corresponding protocol buffer names.
+    ///
+    /// - Returns: Array of enum cases that have name mappings, sorted by raw value.
+    ///
+    /// ## Example
+    /// ```swift
+    /// for mappedCase in MyEnum.mappedCases {
+    ///     print("\(mappedCase): \(mappedCase.description)")
+    /// }
+    /// ```
+    public static var mappedCases: [Self] {
+        return nameMap.allEnumCases(for: Self.self)
+    }
+    
+    /// Returns all field name information for this enum type.
+    ///
+    /// This provides detailed information about all mapped enum cases including
+    /// their protocol buffer names, JSON names, and numbers.
+    ///
+    /// - Returns: Array of field name information for all mapped cases.
+    ///
+    /// ## Example
+    /// ```swift
+    /// for info in MyEnum.allNameInfo {
+    ///     print("Case \(info.number): \(info.protoName) -> \(info.jsonName)")
+    /// }
+    /// ```
+    public static var allNameInfo: [FieldNameInfo] {
+        return nameMap.allFieldNames(for: Self.self)
+    }
+}
